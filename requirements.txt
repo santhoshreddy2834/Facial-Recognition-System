@@ -1,0 +1,12 @@
+opencv-python     >>Image processing, face detection, and video handling.
+mtcnn             >>Multi-task Cascaded Convolutional Networks (MTCNN) for face detection.
+deepface	  >>Pre-trained face recognition models (FaceNet, VGG-Face, ArcFace, etc.).
+tensorflow	  >>Deep learning framework for training and recognizing faces.
+numpy	          >>Numerical operations (matrix calculations, array handling).
+pandas            >>Data storage and manipulation (saving face embeddings, CSV handling).
+matplotlib        >>Visualization (displaying images, detected faces, plots).
+flask             >>Web framework for building the backend API.
+flask-cors	  >>Allows cross-origin requests (needed for frontend-backend communication).
+gdown             >>Downloading pre-trained deep learning models from Google Drive.
+gunicorn	  >>Production-ready web server for Flask applications.
+requests	  >>Sending HTTP requests (used in APIs to communicate with services).
