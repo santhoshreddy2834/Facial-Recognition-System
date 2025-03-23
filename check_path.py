@@ -1,6 +1,6 @@
 import os
 
-dataset_path = r"C:\Users\chint\Documents\Facial_Recognition_project\dataset"
+dataset_path = r"C:\Users\<yourname>\Documents\Facial_Recognition_project\dataset"
 
 if os.path.exists(dataset_path):
     print("✅ Folder found! Listing files:")
