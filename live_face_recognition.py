@@ -1,88 +1,141 @@
 import cv2
 import os
-import pandas as pd
+import csv
+import numpy as np
 from datetime import datetime
 from deepface import DeepFace
+from sklearn.metrics.pairwise import cosine_similarity
 
-# Ensure dataset and logs exist
-DATASET_FOLDER = "dataset"
-RECOGNIZED_FOLDER = "recognized_faces"
-LOG_FILE = "detection_log.txt"
-ATTENDANCE_FILE = "attendance.csv"
+# Paths
+dataset_folder = "dataset"
+recognized_faces_folder = "recognized_faces"
+attendance_file = "attendance.csv"
+detection_log_file = "detection_log.txt"
 
-os.makedirs(DATASET_FOLDER, exist_ok=True)
-os.makedirs(RECOGNIZED_FOLDER, exist_ok=True)
+# Ensure directories exist
+os.makedirs(dataset_folder, exist_ok=True)
+os.makedirs(recognized_faces_folder, exist_ok=True)
 
-# Load attendance file if exists, else create new
-def initialize_attendance():
-    if not os.path.exists(ATTENDANCE_FILE):
-        df = pd.DataFrame(columns=["Name", "Timestamp"])
-        df.to_csv(ATTENDANCE_FILE, index=False)
+# Load dataset embeddings
+precomputed_embeddings = {}
 
-# Function to capture image and get name
-def capture_face():
-    cap = cv2.VideoCapture(0)
-    while True:
-        ret, frame = cap.read()
-        cv2.imshow("Press 's' to save", frame)
-        
-        key = cv2.waitKey(1)
-        if key == ord('s'):
-            name = input("Enter person's name: ")
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"{DATASET_FOLDER}/{name}_{timestamp}.jpg"
-            cv2.imwrite(filename, frame)
-            print(f"✅ Saved: {filename}")
-            cap.release()
-            cv2.destroyAllWindows()
-            return filename, name
-        elif key == ord('q'):
-            break
-    cap.release()
-    cv2.destroyAllWindows()
-    return None, None
+# Face recognition threshold (higher value = more strict match)
+THRESHOLD = 0.7  
 
-# Function to recognize the face
-def recognize_face(image_path, name):
-    dataset_images = [os.path.join(DATASET_FOLDER, f) for f in os.listdir(DATASET_FOLDER)]
+def compute_embedding(image_path):
+    """Compute embedding of a given image."""
+    try:
+        img_representation = DeepFace.represent(img_path=image_path, model_name="Facenet", enforce_detection=True)[0]["embedding"]
+        return np.array(img_representation)
+    except Exception as e:
+        print(f"Error computing embedding for {image_path}: {e}")
+        return None
+
+def load_dataset_embeddings():
+    """Load all embeddings from dataset folder."""
+    precomputed_embeddings.clear()
+    for person_name in os.listdir(dataset_folder):
+        person_path = os.path.join(dataset_folder, person_name)
+        if os.path.isdir(person_path):
+            embeddings = []
+            for img_file in os.listdir(person_path):
+                img_path = os.path.join(person_path, img_file)
+                embedding = compute_embedding(img_path)
+                if embedding is not None:
+                    embeddings.append(embedding)
+            if embeddings:
+                precomputed_embeddings[person_name] = embeddings  # Store multiple embeddings per person
+
+def recognize_face(face_image):
+    """Recognize face by comparing embeddings."""
+    try:
+        face_embedding = DeepFace.represent(face_image, model_name="Facenet", enforce_detection=True)[0]["embedding"]
+    except:
+        print("❌ Face detection failed. Try adjusting camera angle or lighting.")
+        return None
     
-    for img in dataset_images:
-        try:
-            result = DeepFace.verify(image_path, img, model_name="VGG-Face", enforce_detection=False)
-            if result['verified']:
-                print(f"✅ Match Found! The person is {name}")
-                save_recognized_face(image_path, name)
-                update_log(name)
-                update_attendance(name)
-                return
-        except:
-            continue
-    print("❌ No Match Found! Saving as a new entry.")
+    best_match = None
+    best_similarity = 0
+    
+    for person_name, stored_embeddings in precomputed_embeddings.items():
+        for stored_embedding in stored_embeddings:  # Compare against all stored embeddings
+            similarity = cosine_similarity([face_embedding], [stored_embedding])[0][0]
+            print(f"Checking {person_name} - Similarity: {similarity}")
+            if similarity > THRESHOLD and similarity > best_similarity:
+                best_similarity = similarity
+                best_match = person_name
+    
+    return best_match
 
-# Save recognized face image
-def save_recognized_face(image_path, name):
+def save_face(image, name, folder):
+    """Save captured face image in a folder."""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = os.path.join(RECOGNIZED_FOLDER, f"{name}_{timestamp}.jpg")
-    image = cv2.imread(image_path)
-    cv2.imwrite(filename, image)
-    print(f"✅ Saved recognized face: {filename}")
+    person_folder = os.path.join(folder, name)
+    os.makedirs(person_folder, exist_ok=True)
+    img_count = len(os.listdir(person_folder)) + 1
+    save_path = os.path.join(person_folder, f"{name}_{img_count}.jpg")
+    cv2.imwrite(save_path, image)
+    return save_path
 
-# Log recognized person
-def update_log(name):
-    with open(LOG_FILE, "a") as f:
+def log_detection(name):
+    """Log the recognized face in a text file."""
+    with open(detection_log_file, "a") as f:
         f.write(f"{datetime.now()} - Recognized: {name}\n")
     print(f"✅ Log updated for {name}")
 
-# Update attendance
 def update_attendance(name):
-    df = pd.read_csv(ATTENDANCE_FILE)
+    """Update the attendance log."""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    df.loc[len(df)] = [name, timestamp]
-    df.to_csv(ATTENDANCE_FILE, index=False)
+    with open(attendance_file, "a", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow([timestamp, name])
     print(f"✅ Attendance updated for {name}")
 
+def capture_and_recognize():
+    """Capture live face and recognize."""
+    cap = cv2.VideoCapture(0)
+    if not cap.isOpened():
+        print("❌ Error: Could not access the webcam.")
+        return
+    
+    print("📸 Press 's' to capture an image or 'q' to quit.")
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            print("❌ Error: Failed to capture an image.")
+            break
+        
+        cv2.imshow("Live Face Recognition", frame)
+        key = cv2.waitKey(1) & 0xFF
+        if key == ord('s'):
+            cap.release()
+            cv2.destroyAllWindows()
+            
+            recognized_name = recognize_face(frame)
+            
+            if recognized_name:
+                print(f"✅ Match Found! The person is {recognized_name}")
+                save_face(frame, recognized_name, recognized_faces_folder)
+                log_detection(recognized_name)
+                update_attendance(recognized_name)
+            else:
+                new_name = input("❓ Unknown face detected. Enter name: ")
+                save_path = save_face(frame, new_name, dataset_folder)
+                save_face(frame, new_name, recognized_faces_folder)
+                print(f"✅ New face saved as {new_name}")
+                log_detection(new_name)
+                update_attendance(new_name)
+                precomputed_embeddings.setdefault(new_name, []).append(compute_embedding(save_path))
+                load_dataset_embeddings()
+            break
+        elif key == ord('q'):
+            break
+    
+    cap.release()
+    cv2.destroyAllWindows()
+
 if __name__ == "__main__":
-    initialize_attendance()
-    img_path, person_name = capture_face()
-    if img_path and person_name:
-        recognize_face(img_path, person_name)
+    load_dataset_embeddings()
+    capture_and_recognize()
+
+
