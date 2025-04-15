@@ -11,7 +11,7 @@ gdown             >>Downloading pre-trained deep learning models from Google Dri
 gunicorn	  >>Production-ready web server for Flask applications.
 requests	  >>Sending HTTP requests (used in APIs to communicate with services).
 
-updations>>
+updations of versions>>
 flask==2.2.5
 opencv-python==4.9.0.80
 tensorflow==2.11.0
