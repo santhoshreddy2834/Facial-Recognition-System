@@ -1,27 +1,11 @@
-opencv-python     >>Image processing, face detection, and video handling.
-mtcnn             >>Multi-task Cascaded Convolutional Networks (MTCNN) for face detection.
-deepface	  >>Pre-trained face recognition models (FaceNet, VGG-Face, ArcFace, etc.).
-tensorflow	  >>Deep learning framework for training and recognizing faces.
-numpy	          >>Numerical operations (matrix calculations, array handling).
-pandas            >>Data storage and manipulation (saving face embeddings, CSV handling).
-matplotlib        >>Visualization (displaying images, detected faces, plots).
-flask             >>Web framework for building the backend API.
-flask-cors	  >>Allows cross-origin requests (needed for frontend-backend communication).
-gdown             >>Downloading pre-trained deep learning models from Google Drive.
-gunicorn	  >>Production-ready web server for Flask applications.
-requests	  >>Sending HTTP requests (used in APIs to communicate with services).
-
-updations of versions>>
-flask==2.2.5
+streamlit==1.32.2
 opencv-python==4.9.0.80
-tensorflow==2.11.0
-keras==2.11.0
+tensorflow==2.13.0
+keras==2.13.1
+numpy==1.24.3
+pillow==9.5.0
 deepface==0.0.79
 mtcnn==0.1.1
-h5py==3.9.0
-streamlit==1.32.2
-numpy==1.24.3
-Pillow==9.5.0
 requests==2.31.0
-scikit-learn==1.2.2
-python-dotenv==1.0.1
+h5py==3.10.0
+
