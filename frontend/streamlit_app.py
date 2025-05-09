@@ -2,108 +2,103 @@ import streamlit as st
 import requests
 import cv2
 import numpy as np
-import io
 from PIL import Image
-
-API_URL = "http://127.0.0.1:8000"
 
 st.set_page_config(page_title="Facial Recognition System", layout="wide")
 
-st.title("🎥 Facial Recognition System Dashboard")
+# Navigation bar
+st.sidebar.title("🔐 Facial Recognition Menu")
+page = st.sidebar.radio("Go to", ["🏠 Home", "🧑‍💼 Register Face", "🚨 Criminal Gallery", "📷 Live Face Recognition", "📊 Attendance"])
 
-# Sidebar Navigation
-page = st.sidebar.radio("Select Option", ["🔍 Live Face Recognition", "📥 Register New Face", "📂 Registered Faces", "🧾 Attendance Logs", "🔁 Update Embeddings"])
+API_BASE = "http://localhost:5000"
 
-# Capture Image Helper
-def capture_image():
+def home_page():
+    st.title("😎 Facial Recognition System")
+    st.markdown("### 🔍 Real-Time Face Detection & Recognition")
+    st.image("https://cdn.analyticsvidhya.com/wp-content/uploads/2020/02/facial_recog.png", use_container_width=True)
+    st.markdown("##### Navigate through the sidebar to:")
+    st.markdown("- 📷 Detect faces live from your webcam")
+    st.markdown("- 🧑‍💼 Register new faces")
+    st.markdown("- 🚨 Detect criminals in real-time")
+    st.markdown("- 📊 View attendance records")
+
+def register_face():
+    st.title("🧑‍💼 Register New Face")
+    name = st.text_input("Enter Name")
+    image_file = st.file_uploader("Upload Face Image", type=['jpg', 'png'])
+
+    if st.button("Register") and name and image_file:
+        img = Image.open(image_file).convert("RGB")
+        img_np = np.array(img)
+        _, img_encoded = cv2.imencode('.jpg', img_np)
+        response = requests.post(f"{API_BASE}/register", files={"file": img_encoded.tobytes()}, data={"name": name})
+
+        if response.status_code == 200:
+            st.success(f"Face registered successfully for {name}")
+        else:
+            st.error("Registration failed")
+
+def view_criminal_gallery():
+    st.title("🚨 Criminal Gallery")
+    res = requests.get(f"{API_BASE}/criminals")
+    if res.status_code == 200:
+        criminals = res.json()["criminals"]
+        for crim in criminals:
+            st.image(crim["image_path"], caption=crim["name"], width=150)
+    else:
+        st.error("Unable to fetch criminal data")
+
+def live_face_recognition():
+    st.title("📷 Live Face Recognition")
+    st.markdown("Press 's' to capture photo for recognition")
+
     cap = cv2.VideoCapture(0)
-    st.info("📸 Press 's' to capture, 'q' to quit.")
-    captured_image = None
+    FRAME_WINDOW = st.image([])
 
-    while True:
+    run = st.checkbox('Start Webcam')
+
+    while run:
         ret, frame = cap.read()
-        cv2.imshow("Camera - Press 's' to Capture", frame)
+        if not ret:
+            st.error("Camera not accessible")
+            break
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        FRAME_WINDOW.image(frame)
 
-        key = cv2.waitKey(1)
-        if key == ord("s"):
-            captured_image = frame
-            break
-        elif key == ord("q"):
-            break
+        if st.button("📸 Scan Face"):
+            _, img_encoded = cv2.imencode('.jpg', frame)
+            response = requests.post(f"{API_BASE}/recognize", files={"file": img_encoded.tobytes()})
+            if response.status_code == 200:
+                result = response.json()
+                if result['recognized']:
+                    st.success(f"Detected: {result['name']}")
+                    if result['is_criminal']:
+                        st.error("🚨 This person is a CRIMINAL")
+                else:
+                    st.warning("No match found.")
+            else:
+                st.error("Recognition failed.")
 
     cap.release()
-    cv2.destroyAllWindows()
-    return captured_image
 
-# Live Face Recognition
-if page == "🔍 Live Face Recognition":
-    st.subheader("🔍 Real-Time Face Recognition")
-    if st.button("📷 Capture & Recognize"):
-        frame = capture_image()
-        if frame is not None:
-            _, img_encoded = cv2.imencode('.jpg', frame)
-            try:
-                response = requests.post(f"{API_URL}/recognize", files={"image": img_encoded.tobytes()})
-                result = response.json()
-                st.success(f"👤 Recognized: {result['name']}")
-                st.info(f"🎯 Confidence: {result['confidence']}%")
-                st.warning(f"🚨 Criminal: {result['is_criminal']}")
-                st.image(frame, channels="BGR", caption="Captured Face")
-            except Exception as e:
-                st.error(f"❌ Error contacting backend: {e}")
+def attendance_view():
+    st.title("📊 Attendance Records")
+    res = requests.get(f"{API_BASE}/attendance")
+    if res.status_code == 200:
+        records = res.json().get("attendance", [])
+        for rec in records:
+            st.write(f"{rec['name']} - {rec['timestamp']}")
+    else:
+        st.error("Could not load attendance data.")
 
-# Register New Face
-elif page == "📥 Register New Face":
-    st.subheader("📥 Register a New Face")
-    name = st.text_input("Full Name")
-    is_criminal = st.selectbox("Criminal Status", ["no", "yes"])
-
-    if st.button("📷 Capture & Register"):
-        frame = capture_image()
-        if frame is not None:
-            _, img_encoded = cv2.imencode('.jpg', frame)
-            files = {"image": img_encoded.tobytes()}
-            data = {"name": name, "is_criminal": is_criminal}
-            try:
-                response = requests.post(f"{API_URL}/register", data=data, files=files)
-                st.success(response.json()["message"])
-                st.image(frame, channels="BGR", caption="Registered Face")
-            except Exception as e:
-                st.error(f"❌ Registration failed: {e}")
-
-# Registered Faces
-elif page == "📂 Registered Faces":
-    st.subheader("📂 Registered Faces")
-    try:
-        response = requests.get(f"{API_URL}/registered_faces")
-        face_data = response.json()
-        cols = st.columns(4)
-        for i, person in enumerate(face_data):
-            with cols[i % 4]:
-                img_path = f"../data/faces/{person['image']}"
-                if os.path.exists(img_path):
-                    img = Image.open(img_path)
-                    st.image(img, caption=person["name"], use_column_width=True)
-    except Exception as e:
-        st.error(f"❌ Failed to load faces: {e}")
-
-# Attendance Logs
-elif page == "🧾 Attendance Logs":
-    st.subheader("🧾 Attendance Logs")
-    try:
-        response = requests.get(f"{API_URL}/attendance_logs")
-        logs = response.json()
-        for log in logs[::-1]:
-            st.markdown(f"👤 **{log['name']}** | 🕒 {log['time']} | 🚨 Criminal: {log['is_criminal']}")
-    except Exception as e:
-        st.error(f"❌ Failed to fetch logs: {e}")
-
-# Update Embeddings
-elif page == "🔁 Update Embeddings":
-    st.subheader("🔁 Refresh Face Embeddings")
-    if st.button("🔄 Update Now"):
-        try:
-            response = requests.post(f"{API_URL}/update_embeddings")
-            st.success(response.json()["message"])
-        except Exception as e:
-            st.error(f"❌ Failed to update: {e}")
+# Routing
+if page == "🏠 Home":
+    home_page()
+elif page == "🧑‍💼 Register Face":
+    register_face()
+elif page == "🚨 Criminal Gallery":
+    view_criminal_gallery()
+elif page == "📷 Live Face Recognition":
+    live_face_recognition()
+elif page == "📊 Attendance":
+    attendance_view()
