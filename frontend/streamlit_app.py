@@ -15,7 +15,12 @@ API_BASE = "http://localhost:5000"
 def home_page():
     st.title("😎 Facial Recognition System")
     st.markdown("### 🔍 Real-Time Face Detection & Recognition")
-    st.image("https://cdn.analyticsvidhya.com/wp-content/uploads/2020/02/facial_recog.png", use_container_width=True)
+
+    try:
+        st.image("https://cdn.analyticsvidhya.com/wp-content/uploads/2020/02/facial_recog.png", use_container_width=True)
+    except Exception as e:
+        st.warning("Image could not be loaded. Please check your internet connection or try again later.")
+
     st.markdown("##### Navigate through the sidebar to:")
     st.markdown("- 📷 Detect faces live from your webcam")
     st.markdown("- 🧑‍💼 Register new faces")
